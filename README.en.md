@@ -9,6 +9,75 @@
 
 ---
 
+## ⚠️ Read this before you plug anything in
+
+I understand the concern: **running a stranger's code against your phone is a real risk.**
+So this section is not reassurance — it is facts, plus how to verify them yourself.
+
+### What it does
+
+- Replaces **two audio files** on your iPhone (the call-recording start/stop announcements) with
+  **silence of exactly the same duration**:
+  - `/var/mobile/Library/CallServices/Greetings/default/StopDisclosure.caf`
+  - `/var/mobile/Library/CallServices/Greetings/default/StartDisclosureWithTone.m4a`
+- Before replacing, it reads the originals back **onto your computer** as a backup
+
+### What it does not do
+
+- ❌ **No network access.** I grepped the whole of `airlift.py`: **no HTTP / urllib / requests /
+  socket calls**. Everything goes over USB, between your phone and your computer only
+- ❌ **No jailbreak**, no privilege escalation, no kernel changes
+- ❌ **No scanning.** The paths it touches are **hard-coded in the command**, the two above
+- ❌ **It only ever touches the media / user-data layer** — see *Risk and limits*
+
+### Why it cannot brick your phone
+
+This is a mechanical argument, not a promise:
+
+> Bricking requires modifying the **boot chain (SecureROM / iBoot), the system volume
+> (APFS snapshot) or the SEP**. On a **non-jailbroken** device those are protected by
+> **Secure Boot and code signing** and **cannot be written to at all**.
+>
+> This project goes through **AirTraffic** — Apple's own media-sync protocol. That channel's
+> **ceiling is the media partition**. In other words: it is not that we carefully avoid the
+> system volume — **the channel has no permission to touch it.**
+
+### What I will not promise you
+
+- Not that **Apple will never restore these files in a future update** (they have in fact been
+  silently updated before)
+- Not that it works on **any version other than iOS 27.0.1 (24A446)**
+- Not that `pymobiledevice3` stays compatible across versions — **that library moves fast and
+  we have already been bitten by it** (hence the pinned version in `requirements.txt`)
+
+### Three things you can verify yourself (in order)
+
+**① Read the code.** `macos/airlift.py` is **764 lines**. 90% of it is not ours — it comes from
+the upstream [airlift](https://github.com/0xjohnnydev/airlift) /
+[AirliftSilence](https://github.com/YiHoooong/AirliftSilence) projects.
+**We only changed how the system libraries are loaded — about 70 lines**, all visible in
+`macos/enablement.patch`.
+
+**② Start with the read-only step.** `tools/设备体检.py scan` **only reads** the device's media
+directory. It triggers no write and is safe to run any number of times.
+**Run it first and see whether it connects cleanly.**
+
+**③ Then the `read` step.** It is a round trip — **on success the file returns to where it was.**
+If it works, the whole chain works. If it fails you find out immediately, **and you have not
+written anything yet.**
+
+> **If you are not going to read the code and not going to run the read-only step — please
+> don't use this.** That is not a formality; I mean it.
+
+### 🚫 When not to use this
+
+- **iOS 27.2 beta 3 or later** — patched by Apple. **It will not work; don't bother**
+- **It's your only phone and any hiccup would be a disaster** — then it isn't worth it.
+  Honestly, this is not a tool for everyone
+- **You are not comfortable with a terminal** — please go through it with someone who is
+
+---
+
 ## What this is
 
 Since iOS 18.1, Apple ships call recording — but it plays a **spoken announcement** when
@@ -145,14 +214,79 @@ Because the ctypes signatures in `airlift.py` were already platform-independent,
 
 ---
 
+## 🔴 Risk and limits
+
+### What it actually touches on the device
+
+| Operation | Location | Note |
+|---|---|---|
+| Temporarily rewrites the sync index `Books/Sync/Books.plist`, **then restores it** | media partition | required to trigger the escape; saved and put back |
+| Drops temporary archives and symlinks under `Media/`, **then deletes them** | media partition | intermediate artifacts of the escape |
+| `read` / `replace` move the **target audio file** into `Media/` and write it back | media partition | only the two paths you passed on the command line |
+
+**All of it is in the media / user-data layer.**
+
+### The worst case
+
+Honestly: **the worst we actually observed is a failed write leaving the target audio file
+missing or damaged.** The symptom is the announcement being gone, or playing oddly.
+**It does not affect booting, calling, or anything else.**
+
+And that state **has a defined recovery path** (see *Restoring the originals*), because:
+
+1. On failure the original **stays in the device's `Media/` directory** — it is not gone;
+   `tools/设备体检.py` exists to retrieve it
+2. The dump you made in Step 2 is a **copy independent of the device**
+3. Final fallback: **reinstalling / restoring the OS** will make Apple re-deliver these files
+
+### What it cannot do
+
+- ❌ **Cannot reach the boot chain / system volume / SEP** — protected by Secure Boot and code
+  signing on a non-jailbroken device, and the AirTraffic channel **has no such permission**
+- ❌ Will not touch your photos, messages, accounts, or other apps
+- ❌ Will not void your warranty (no jailbreak, no system-volume changes)
+
+### What it does not guarantee
+
+- **Not that it stays working**: Apple may restore these files in any update. They **have been
+  silently updated before**
+- **Not cross-version compatibility**: verified only on **iOS 27.0.1 (24A446)**
+- **Not third-party dependency stability**: `pymobiledevice3` moves fast, **we have already been
+  bitten once**, hence the pinned version
+- **Not that we exhausted every failure mode** — anyone claiming "nothing else can possibly go
+  wrong" is bluffing. What we can say: **every failure we observed is recoverable, and recovery
+  does not depend on the device itself**
+
+### The one part of the supply chain we cannot vouch for
+
+```
+pymobiledevice3
+```
+
+It is a third-party library, not ours. We **pin the version we verified** in `requirements.txt`,
+but be aware this is **the one part of this project we cannot fully audit for you**.
+Take a look at its repository before installing (it is a well-known open-source iOS tooling
+library).
+
+> **What we did audit:** `macos/airlift.py`, 764 lines, read line by line; no network calls;
+> about 70 lines of change versus upstream, comparable line by line in `macos/enablement.patch`.
+
+---
+
 ## Usage
 
 ### Setup
 
 ```sh
 python3 -m venv .venv
-.venv/bin/pip install pymobiledevice3
+.venv/bin/pip install -r requirements.txt
 ```
+
+> `requirements.txt` **pins the `pymobiledevice3` version we verified.**
+> Why pin: that library iterates extremely fast (700+ releases on PyPI) and reshuffles its
+> internal API — **we were bitten by exactly that during development**, and the tool reported a
+> completely misleading error. Use the pinned version; if you want to upgrade, run the read-only
+> `设备体检.py scan` first to check compatibility.
 
 > **If you hit `PermissionError: ~/.pymobiledevice3`** — that is just an unwritable pairing
 > cache directory, not a device problem. The commands below already set the workaround.
@@ -242,7 +376,7 @@ and **reboot the phone and test again**.
 
 ---
 
-## 🔴 Two pitfalls you need to know
+## 🔴 Two common pitfalls
 
 ### 1. The silent file's duration must be generated for *your* device
 
@@ -307,9 +441,49 @@ system to regenerate the default tones. We have not independently verified this.
 
 ---
 
+## FAQ
+
+**Q: I'm not technical — can I still do this?**
+Not on your own, no. Have someone technical read the code and the steps with you, or just use
+DSH and let it walk you through (see the credits section above).
+
+**Q: Will this break my phone?**
+See *Risk and limits*. The worst case we observed is a missing/damaged announcement file, which
+**does not affect booting or calls** and has a defined recovery path. But **nobody, including us,
+can give you a 100% guarantee** — so make the Step 2 backup first.
+
+**Q: Does it read my private data?**
+No. There are **no network calls anywhere in the source**; everything goes over USB between your
+phone and your computer. It only touches the two audio paths hard-coded in the command, plus the
+temporary files the AirTraffic escape needs.
+
+**Q: Why not just use one of the existing apps?**
+Because those require installing an app on the iPhone, IPA signing (free accounts expire after 7
+days), a LocalDevVPN loopback tunnel and a US Apple ID. Once we found a more direct entry point,
+**none of that is needed**.
+
+**Q: Will it survive an OS update?**
+**iOS 27.2 beta 3 and later are patched by Apple** — it will not work after upgrading. If you are on
+27.0.1 or lower, **turn off automatic updates now**.
+
+**Q: Will the announcement come back after an update or restore?**
+Possibly. These audio files **have been silently updated by Apple before**. If the announcement
+returns, just run the same steps again.
+
+**Q: I have a different iPhone model — will it work?**
+In principle yes, but **we only verified on one iPhone 19,7 / iOS 27.0.1 (24A446)**. The important
+part: **the silent file must be generated against your device's actual duration** (see Step 3).
+Do not reuse the one in this repo — it was generated for a different device.
+
+---
+
 ## Layout
 
 ```
+requirements.txt           pinned dependency version (the one we verified)
+README.md                  中文版（primary）
+README.en.md               this file
+
 macos/                     the actual solution
   airlift.py                 AirTraffic escape (3 fixes + macOS support)
   airlift_gui.py             optional GUI
@@ -333,17 +507,14 @@ device-backup-24A446/      our device's originals (for format reference only)
 
 ---
 
-## ⚠️ Legal and safety
+## ⚖️ Legal
 
 - This tone exists to **let the other party know the call is being recorded**. Removing it
   means the system no longer informs them.
 - Consent requirements for call recording vary by jurisdiction. **Some countries and US
   states require all parties to consent**; using this there may be unlawful.
-  **Check your local law and obtain any required consent.**
-- This relies on undocumented Apple behaviour and **may stop working after any OS update**.
-- The mechanism only **moves and writes files** — it does not flash firmware or touch system
-  partitions, so there is no bricking mechanism. Even so, **back up the originals first**
-  (Step 2).
+- **Check your local law and obtain consent where required.** That responsibility is the
+  user's, not the author's.
 
 ---
 

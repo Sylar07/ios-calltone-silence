@@ -1,0 +1,20 @@
+# 本项目的依赖——已锁定到我们实际验证过的版本
+#
+# 为什么锁定：
+#   pymobiledevice3 迭代极快（PyPI 上已有 700+ 个版本），它会随版本重构内部 API。
+#   我们在开发过程中就亲身踩到过一次——lockdown 客户端上的 `product_type` 属性
+#   在某个版本后消失了，导致工具抛 AttributeError，又被上游的 `except: continue`
+#   静默吞掉，最后报出一句完全误导人的 "no paired iPhone found"。
+#
+#   所以下面这个版本是**我们唯一实测通过**的版本。装它。
+#
+# 如果之后想升级：
+#   1. 先跑 `python tools/设备体检.py scan`（只读，零风险）
+#   2. 确认能连上设备、能正确读出机型与系统版本
+#   3. 再考虑执行写操作
+#
+# 用法：
+#   python3 -m venv .venv
+#   .venv/bin/pip install -r requirements.txt
+
+pymobiledevice3==11.32.0
