@@ -1,0 +1,12 @@
+# 归档目录：仅本地保留，不进新仓库（新仓库要干净）
+archive/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# 配对缓存 / 虚拟环境
+.venv/
