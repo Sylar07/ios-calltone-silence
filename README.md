@@ -1,137 +1,169 @@
-# Silence iOS Call-Recording Disclosure Tones
+# 静音 iOS 通话录音提示音
 
-> **No app to install. No jailbreak. No signing. No VPN. No pairing file — just a cable.**
+> **不用装 App、不用越狱、不用签名、不用 VPN、不用配对文件 —— 只需要一根数据线。**
 >
-> Plug an iPhone into a Mac over USB and replace the system's call-recording start/stop
-> disclosure tones with silence of identical length. Full backup kept, fully reversible.
+> 把 iPhone 用数据线连到 Mac，把系统通话录音的开始 / 结束提示音替换成等长静音，
+> 并保留完整备份随时可还原。
 
-**English** · [简体中文](README.zh-CN.md)
+**简体中文** · [English](README.en.md)
 
 ---
 
-## What this is
+## 这是什么
 
-Since iOS 18.1, Apple ships call recording — but it plays a **spoken announcement** when
-recording starts and stops ("This call will be recorded", or 此通话将被录音 on Chinese
-devices). **Both parties hear it**; that is its purpose: to notify the other person.
+iOS 18.1 起，Apple 加入了通话录音功能，但会在录音开始和结束时播放一段**语音提示**——
+中文设备上说的是「此通话将被录音」，英文设备上是 "This call will be recorded"。
+这段提示音**通话双方都能听到**，目的是告知对方。
 
-This project replaces those two audio files with **silence of exactly the same duration**,
-so recording itself keeps working and the start/stop timing does not shift.
+本项目把这两个提示音文件替换成**时长完全一致的静音文件**，因此录音功能本身不受影响，
+录音的开始 / 结束时机也不会变化。
 
-### How it differs from the app-based approaches
+### 与之前那些方案的区别
 
-| | App-based (e.g. AirBeep) | **This project** |
+| | 依赖 iOS App 的方案（如 AirBeep） | **本项目** |
 |---|---|---|
-| App installed on the iPhone | required | **not needed** |
-| IPA signing / 7-day free-account limit | required | **not needed** |
-| Loopback VPN (LocalDevVPN et al.) | required | **not needed** |
-| Pairing file | required | **not needed** |
-| What you actually need | a pile of prerequisites | **one USB cable** |
+| iPhone 上装 App | 必须 | **不需要** |
+| IPA 签名 / 免费账号 7 天限制 | 必须 | **不需要** |
+| 本地回环 VPN（LocalDevVPN 等） | 必须 | **不需要** |
+| 配对文件 | 必须 | **不需要** |
+| 需要的东西 | 一堆前置条件 | **一根数据线** |
 
-The reason is a **more direct entry point** — see *How it works*.
-
----
-
-## Verified on
-
-**Fully verified end to end (read → write → restore → reboot retest):**
-
-| | |
-|---|---|
-| Device | iPhone 19,7 |
-| OS | **iOS 27.0.1 (24A446)** |
-| Host | Mac (Apple Silicon) |
-
-What was verified: the replacement itself, an identical hash on read-back,
-**a real recorded call confirming the announcement is gone**, and that it
-**still holds after rebooting the phone**.
-
-> One known leftover: the other party can still hear three very faint lead-in
-> beeps ("doo-doo-dee"). iOS labels them 即将播放此通话正在录音的提示
-> ("about to play the call-recording notice"). They are a **separate audio
-> element** from the announcement and are not covered by this replacement.
-
-### ⚠️ About iOS versions
-
-| iOS | Status |
-|---|---|
-| iOS 18.0 – 27.0.1 | considered supported upstream (we only verified 27.0.1) |
-| **iOS 27.2 beta 3 and later** | ❌ **patched by Apple — this no longer works** |
-
-> **If you are on 27.0.1 or lower, turn off automatic updates**
-> (Settings › General › Software Update › Automatic Updates) before you start.
-> Once patched, it does not come back.
+原因是我们找到了一个**更直接的入口**，见下方「原理」。
 
 ---
 
-## How it works
+## 🙏 致谢：这个方案是用 DSH + DeepSeek 做出来的
 
-This builds on the **AirTraffic / ATAirlock sandbox escape** researched by the upstream
-[airlift](https://github.com/0xjohnnydev/airlift) project.
+**特别感谢 [大肥鱼 DeepSeek](https://www.deepseek.com/) 和 [DSH（DeepSeek Harness）](https://github.com/deepseek-ai/deepseek-harness)。**
 
-AirTraffic is Apple's official channel for syncing media (books, audiobooks) from a Mac to
-iOS. It has a path-validation flaw:
+这套方案不是"先有思路再写代码"，而是**人机协作一路摸索出来的**。下面这些关键突破，
+每一个都是 AI 在会话中主动排查出来的，而不是我原本就知道的：
 
-1. Upload a crafted archive via `com.apple.streaming_zip_conduit` containing a **relative
-   symlink** `p0/p1/p2/link → ../../../<target path>`
-2. Overwrite `Media/Books/Sync/Books.plist` over AFC, with `..` sequences in the AssetID
-3. Drive the AirTraffic state machine (`HostInfo → RequestingSync → ReadyForSync →
-   AssetManifest → FileComplete`) to trigger the move
-4. **The flaw** is in `-[ATAirlock processCompletedAsset:]`:
-   - the AssetID (identifier) is **not path-validated** — `..` escapes
-     `/var/mobile/Media/Airlock/Book`
-   - the destination gets only a **string prefix check** `hasPrefix:@"/var/mobile/Media/"`,
-     not a check of the symlink-resolved real path
+- 最初的目标方案是另一个项目（需要给 iPhone 装 App + IPA 签名 + 本地回环 VPN）。
+  是 AI 逐条否掉了 **7 条更麻烦的路线**，才找到现在这条最短的
+- **「macOS 上本来就有 `AirTrafficHost.framework`」** 这个决定性发现，来自核对上游代码
+  —— 上游之所以只做 Windows 版，仅仅因为它按目录去找 `.dll`；而 macOS 上的框架
+  **符号完全一致**（实测 9/9 + 8/8 可用）。换了库加载方式之后，**一台 Windows 电脑都不需要了**
+- 那个把所有人引向错误方向的 `product_type` bug，是逐行读源码抓出来的。
+  它的恶劣之处在于：异常被 `except: continue` 静默吞掉，最后报出 `no paired iPhone found`
+  ——**你会以为是线的问题、信任没点，而真正的原因在代码里**
+- 连「静音件必须按设备实际时长生成」这件事，也是在真机上 dump 出原件、比对哈希后才暴露的：
+  **差了 400 毫秒**。只看文档、照搬作者现成的静音件，绝对发现不了
 
-So files can be written outside the sandbox — including the directory holding the two
-disclosure tones.
+**所以我特别鼓励你：直接用 DSH 来做这件事。** 你完全可以复现这条路径：
 
-### The key finding: macOS already has what you need
+```sh
+# 1. 装好 DSH，然后在你的工作目录里启动它
+dsh
+# 2. 直接对它说：
+> 帮我克隆 https://github.com/jiutinglifeng/ios-calltone-silence
+> 然后读 README，按里面的步骤帮我把这台 iPhone 的通话录音提示音去掉
+```
 
-Upstream `AirliftSilence` ships **Windows-only**, on the grounds that "the exploit needs
-`AirTrafficHost.dll`".
+把 iPhone 用数据线连上 Mac，剩下的交给它。README 写得足够具体——
+包括**出错时该看哪个文件、哪句报错对应什么动作**（见 `docs/失败签名对照表.md`）。
 
-**That reasoning only applies to that particular Windows port.** macOS has
-`/System/Library/PrivateFrameworks/AirTrafficHost.framework` with **identical symbols**.
-Measured on this machine:
+> 如果你遇到新问题，让它把这轮的发现补进文档，再开一个 PR 回来。
+> **这个方案的下一次改进，可能就来自你。**
+>
+> 说句实话：本项目自己的增量其实只有三点——把 `airlift.py` 移植到 macOS、
+> 修掉 3 个会误导人的 bug、以及验证「静音件必须按设备实际时长生成」。
+> **剩下的全是上游研究者多年的工作**，见文末致谢表。
 
-| Library | Symbols required | Available on macOS |
+---
+
+## 支持的设备
+
+**已在下列环境完整验证（读、写、还原、重启后复测全部通过）：**
+
+| 项 | 值 |
+|---|---|
+| 设备 | iPhone 19,7 |
+| 系统 | **iOS 27.0.1 (24A446)** |
+| 电脑 | Mac（Apple Silicon） |
+
+验证内容包括：替换成功、读回哈希一致、**实际通话确认提示音消失**、
+以及**重启手机后依然有效**。
+
+> 一个已知残留：对方仍能听到极轻的三声引导音（"嘟-嘟-滴"），
+> iPhone 上对应提示是「即将播放此通话正在录音的提示」。
+> 这说明它**和提示音是两个不同的音频主体**，未被本次替换覆盖。
+
+### ⚠️ 关于 iOS 版本
+
+| iOS 版本 | 状态 |
+|---|---|
+| iOS 18.0 – 27.0.1 | 上游研究认为可用（我们只验证了 27.0.1） |
+| **iOS 27.2 beta 3 及以上** | ❌ **已被 Apple 修补，方案失效** |
+
+> **如果你在 27.0.1 或更低版本：建议先关闭「设置 › 通用 › 软件更新 › 自动更新」。**
+> 漏洞一旦被修补就不会再回来。
+
+---
+
+## 原理
+
+这套方法建立在上游 [airlift](https://github.com/0xjohnnydev/airlift) 项目的
+**AirTraffic / ATAirlock 沙盒逃逸**研究之上。
+
+AirTraffic 是 Apple 用来从 Mac 同步媒体（书籍、有声书）到 iOS 的官方协议。
+它存在一处路径校验缺陷：
+
+1. 通过 `com.apple.streaming_zip_conduit` 上传一个特制压缩包，内含**相对符号链接**
+   `p0/p1/p2/link → ../../../<目标路径>`
+2. 用 AFC 覆盖写 `Media/Books/Sync/Books.plist`，其 AssetID 中带 `..` 路径
+3. 走完 AirTraffic 状态机（`HostInfo → RequestingSync → ReadyForSync →
+   AssetManifest → FileComplete`）触发搬运
+4. **缺陷点**在 `-[ATAirlock processCompletedAsset:]`：
+   - AssetID（identifier）**未做路径校验**，可用 `..` 逃出 `/var/mobile/Media/Airlock/Book`
+   - destination **只做字符串前缀检查** `hasPrefix:@"/var/mobile/Media/"`，
+     不解析符号链接后的真实路径
+
+于是文件可以被写到沙盒之外，也就是那两个提示音所在的目录。
+
+### 本项目的关键发现：macOS 不需要另找工具
+
+上游 `AirliftSilence` 只提供 **Windows** 版本，理由是"漏洞需要 `AirTrafficHost.dll`"。
+
+**但这个理由只对那个 Windows 移植版成立。** macOS 上同样存在
+`/System/Library/PrivateFrameworks/AirTrafficHost.framework`，而且
+**符号完全相同**。实测结果：
+
+| 库 | 需要的符号 | macOS 可用性 |
 |---|---|---|
-| `AirTrafficHost.framework` | 9 (`ATHostConnection*`, `ATCFMessage*`) | ✅ **9 / 9** |
-| `CoreFoundation.framework` | 8 (`CFString*`, `CFData*`, `CFPropertyList*`, `CFRelease`) | ✅ **8 / 8** |
+| `AirTrafficHost.framework` | 9 个（`ATHostConnection*` / `ATCFMessage*`） | ✅ **9 / 9** |
+| `CoreFoundation.framework` | 8 个（`CFString*` / `CFData*` / `CFPropertyList*` / `CFRelease`） | ✅ **8 / 8** |
 
-Because the ctypes signatures in `airlift.py` were already platform-independent,
-**only the library loading had to change** — no logic was touched. That is exactly what
-`macos/enablement.patch` does (~70 lines).
+因为 `airlift.py` 里的 ctypes 签名绑定本来就是平台通用的，**只需换掉"从哪里加载这两个库"**，
+其余逻辑一行不用改。这就是 `macos/enablement.patch` 做的事（约 70 行）。
 
 ---
 
-## Usage
+## 使用方法
 
-### Setup
+### 环境准备
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install pymobiledevice3
 ```
 
-> **If you hit `PermissionError: ~/.pymobiledevice3`** — that is just an unwritable pairing
-> cache directory, not a device problem. The commands below already set the workaround.
+> **如果遇到 `PermissionError: ~/.pymobiledevice3`**：那只是配对记录缓存目录不可写，
+> 不是设备问题。加一个环境变量即可，下文命令里已经带了。
 
-### Step 1 — Connect and inspect (zero risk)
+### 第 1 步：连接与体检（零风险）
 
-Plug in the iPhone over USB and unlock it. Then:
+用数据线连上 iPhone、解锁。然后：
 
 ```sh
 cd macos
 AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing ../.venv/bin/python ../tools/设备体检.py scan
 ```
 
-This is **read-only** against the device's media directory. It does not trigger the escape
-and is safe to run any number of times. It checks for leftover files from any previous
-failed operation.
+这一步**只读**设备的媒体目录，不触发逃逸，跑多少次都安全。
+它会检查之前有没有操作失败留下的残留文件。
 
-### Step 2 — Dump the originals (do not skip)
+### 第 2 步：dump 原件（必须先做）
 
 ```sh
 AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py read \
@@ -143,13 +175,11 @@ AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py read \
   backup-StartDisclosureWithTone.m4a --logging
 ```
 
-`read` is a **round trip**: it moves the file into a staging area, reads it, then writes it
-back to its original location. On success the file is unchanged.
+`read` 是**往返操作**：把文件移到临时区、读出、再写回原位。成功时文件回到原样。
 
-> **Why this must come first** — see *Pitfall #1*. Skipping it is how people end up with a
-> silent file of the wrong duration, or lose their only copy of the original.
+> **为什么必须先 dump**：见下方「🔴 第一个坑」。**这一步不能跳过。**
 
-### Step 3 — Generate silence matching *your* device (critical)
+### 第 3 步：按你的设备实际时长生成静音件（关键）
 
 ```sh
 cd ..
@@ -157,16 +187,15 @@ cd ..
 ./tools/静音件生成.sh macos/backup-StartDisclosureWithTone.m4a macos/silent-Start.m4a
 ```
 
-The script reads the original's **codec / sample rate / channel count / duration**,
-generates a matching silent file, and verifies all four.
+脚本会读原件的**编码 / 采样率 / 声道 / 时长**，生成完全匹配的静音文件并自动校验。
 
-> ⚠️ **Do not reuse any pre-made silent file** — including the one in `macos/`.
-> **Its duration was generated for a different device.** Reason below.
+> ⚠️ **不要直接使用任何现成的静音件**，包括本仓库 `macos/` 里那份——
+> **它的时长是按另一台设备生成的**。原因见下方第一个坑。
 >
-> Note: `ffmpeg` **cannot mux Opus into CAF**, and `StopDisclosure.caf` is exactly Opus/CAF.
-> The generator therefore uses macOS's built-in `afconvert` for CAF and `ffmpeg` for m4a.
+> 补充：`ffmpeg` **无法把 Opus 封装进 CAF**，而 `StopDisclosure.caf` 正是 Opus/CAF。
+> 所以生成脚本对 CAF 走的是 macOS 自带的 `afconvert`，对 m4a 走 `ffmpeg`。
 
-### Step 4 — Replace
+### 第 4 步：替换
 
 ```sh
 cd macos
@@ -179,152 +208,141 @@ AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py replace \
   silent-Start.m4a --backup device-backup-Start.m4a --logging
 ```
 
-**Every time, check that `previousSize` in the output is not `null`:**
+**每次都要检查输出里的 `previousSize` 不是 `null`：**
 
 ```json
 {"ok": true, "size": 4327, "previousSize": 41944, "backup": "device-backup-Stop.caf"}
 ```
 
-- a number → ✅ the original was safely read back and backed up; continue
-- `null` → 🔴 **the original could not be read back** and is sitting in the device's
-  `Media/airlift-replaced-*`. **Stop immediately** and recover it with
-  `tools/设备体检.py scan`.
+- `previousSize` 是数字 → ✅ 原件已安全读回备份，继续
+- `previousSize: null` → 🔴 **原件没读回来**，它留在设备的 `Media/airlift-replaced-*`，
+  **立刻停下**，用 `tools/设备体检.py scan` 找出来抢救
 
-### Step 5 — Verify
+### 第 5 步：验证
 
 ```sh
 AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py read \
   /var/mobile/Library/CallServices/Greetings/default/StopDisclosure.caf verify.caf
-shasum -a 256 verify.caf silent-Stop.caf   # hashes must match
+shasum -a 256 verify.caf silent-Stop.caf   # 两个哈希应一致
 ```
 
-Then **place a real call and record it** to confirm the announcement is gone,
-and **reboot the phone and test again**.
+然后**打一通电话实际录音**，确认提示音消失；再**重启手机测一次**。
 
 ---
 
-## 🔴 Two pitfalls you need to know
+## 🔴 两个必须知道的坑
 
-### 1. The silent file's duration must be generated for *your* device
+### 一、静音件的时长必须按你的设备生成
 
-The announcement is a **spoken notification**, so its content varies with system language —
-which means **the file durations differ between devices**.
+提示音是**会说话的通知音**，内容随系统语言变化，所以**不同设备的文件时长不同**。
 
-Measured on a 24A446 device:
+我们在一台 24A446 设备上实测到的差异：
 
-| File | This device | Upstream author's dump | Upstream's bundled silence |
+| 文件 | 本设备 | 上游作者 dump | 上游配套静音件 |
 |---|---|---|---|
 | `StopDisclosure.caf` | Opus 48k **1.520000 s** | Opus 48k 1.920000 s | 1.940000 s |
 | `StartDisclosureWithTone.m4a` | AAC 44.1k 1.618639 s | AAC 44.1k 1.618639 s | 1.671837 s |
 
-**The stop tone differs by 400 ms.** Using the upstream bundled silence would make it
-420 ms longer than the original — visibly stretching the playback window.
+**Stop 提示音相差 400 毫秒。** 如果直接使用上游配套的静音件，会比原件长 420 毫秒——
+播放时机被明显拉长。
 
-> Corroborating detail: AirBeep's author treats **changing the system language** as a way to
-> force the original tones to be regenerated. That trick only makes sense if the tones are
-> language-dependent.
+> 一个旁证：AirBeep 的作者把「**更改系统语言**」当作强制恢复原始提示音的手段。
+> 如果提示音与语言无关，这个手段不会有效。
 
-**So: dump first, then generate against the real duration.** This is a required step, not an
-optimization.
+**所以：先 dump，再按实际时长生成。** 这是必需步骤，不是可选优化。
 
-### 2. An upstream bug makes the tool report "phone not connected"
+### 二、上游代码有个 bug 会让你误判「手机没连上」
 
-This line is in `airlift.py`:
+`airlift.py` 里有一行：
 
 ```python
 pt = ld.product_type or ""
 ```
 
-But the **lockdown client in `pymobiledevice3` 11.x has no `product_type` attribute**
-(it belongs to the irecv / DFU subsystem). The line raises `AttributeError`, and the
-`except Exception: continue` right below **swallows it silently** — every device is skipped,
-and the tool finally reports a completely unrelated **`no paired iPhone found`**.
+但 `pymobiledevice3` 11.x 的 **lockdown 客户端没有 `product_type` 属性**
+（它只属于 irecv / DFU 子系统）。这行抛 `AttributeError`，紧接着的
+`except Exception: continue` 把它**静默吞掉**——每台设备都被跳过，
+最后报出一句与实际原因无关的 **`no paired iPhone found`**。
 
-**You will suspect your cable, the trust prompt, or the driver. The fault is in the code.**
+**你会以为是线的问题、信任没点、驱动没装，其实代码里出错了。**
 
-The `macos/airlift.py` in this repo fixes it (and makes the error message carry the real
-reason). Three such bugs were fixed in total — see `docs/HANDOFF.md`.
+本仓库的 `macos/airlift.py` 已修复（并让错误信息带上真实原因）。
+同类问题我们一共修了 3 处，见 `docs/HANDOFF.md`。
 
 ---
 
-## Restoring the originals
+## 还原
 
-Write your own dump back:
+用你自己 dump 的原件写回：
 
 ```sh
 cd macos
 AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py write \
   /var/mobile/Library/CallServices/Greetings/default/StopDisclosure.caf \
-  <path to your backup> --logging
+  <你的原件备份路径> --logging
 ```
 
-> `write` is for when the target path is empty; if it still exists, use `replace`.
+> `write` 适用于目标路径为空的情况；若目标已存在，用 `replace`。
 
-**Note:** `device-backup-24A446/` holds another device's originals. **Do not use them to
-restore your own device** (durations differ). Use the backup you dumped in Step 2.
+**注意**：本仓库 `device-backup-24A446/` 里是**另一台设备**的原件，
+**不要用来还原你自己的设备**（时长不同）。请用你自己第 2 步 dump 出来的备份。
 
-**Another fallback:** the upstream author notes that changing the system language forces the
-system to regenerate the default tones. We have not independently verified this.
+**另一个兜底**：作者提到更改系统语言可强制系统重新生成默认提示音。
+此说法未经我们独立验证。
 
 ---
 
-## Layout
+## 目录结构
 
 ```
-macos/                     the actual solution
-  airlift.py                 AirTraffic escape (3 fixes + macOS support)
-  airlift_gui.py             optional GUI
-  enablement.patch           every change relative to upstream
-  silent-Stop.caf            silent file used on our device (SAMPLE — regenerate for yours)
-  silent-Start.m4a           idem
+macos/                     核心方案
+  airlift.py                 AirTraffic 逃逸实现（含 3 个修复 + macOS 支持）
+  airlift_gui.py             图形界面（可选）
+  enablement.patch           相对上游的全部改动
+  silent-Stop.caf            本设备实际使用的静音件（示例，请按你的设备重新生成）
+  silent-Start.m4a           同上
 
-tools/
-  静音件生成.sh              generate silence matching the device (essential)
-  设备体检.py                read-only scanner / rescuer for leftover originals
-  演练-救援流程.py           end-to-end rescue drill, 20 assertions, no device needed
+tools/                     辅助工具
+  静音件生成.sh              按设备实际格式生成静音件（关键）
+  设备体检.py                只读扫描 / 抢救残留原件
+  演练-救援流程.py           端到端演练救援链路（20 项断言，不需要真机）
 
 docs/
-  HANDOFF.md                 full technical record: procedure, pitfalls, all measurements
-  失败签名对照表.md          12 real error strings → what to do
+  HANDOFF.md                完整技术记录：执行过程、踩过的坑、全部实测数据
+  失败签名对照表.md          12 个真实错误串 → 对应处理动作
 
-device-backup-24A446/      our device's originals (for format reference only)
+device-backup-24A446/      本项目的真机原件（供格式参照，不要用于还原其他设备）
 ```
 
-*(Tool filenames are in Chinese; each is documented above.)*
+---
+
+## ⚠️ 法律与安全
+
+- 这段提示音的目的是**让对方知道通话正在被录音**。移除它意味着对方不再被系统告知。
+- 不同司法辖区对通话录音的同意要求不同。**部分国家/地区要求通话双方均同意**，
+  在这些地方使用本方法可能违法。**请自行确认你所在地区的法律，并取得必要同意。**
+- 本项目依赖 Apple 的非公开行为，**可能在任意系统更新后失效**。
+- 底层机制是**移动和写入文件**，不刷固件、不动系统分区，因此没有"变砖"机理；
+  但仍建议**先备份原件**再操作（第 2 步）。
 
 ---
 
-## ⚠️ Legal and safety
+## 致谢
 
-- This tone exists to **let the other party know the call is being recorded**. Removing it
-  means the system no longer informs them.
-- Consent requirements for call recording vary by jurisdiction. **Some countries and US
-  states require all parties to consent**; using this there may be unlawful.
-  **Check your local law and obtain any required consent.**
-- This relies on undocumented Apple behaviour and **may stop working after any OS update**.
-- The mechanism only **moves and writes files** — it does not flash firmware or touch system
-  partitions, so there is no bricking mechanism. Even so, **back up the originals first**
-  (Step 2).
+本项目的技术基础全部来自以下上游工作：
 
----
-
-## Credits
-
-All of the underlying work is upstream:
-
-| Project | Author | Contribution |
+| 项目 | 作者 | 贡献 |
 |---|---|---|
-| [airlift](https://github.com/0xjohnnydev/airlift) | Johnny Franks | original AirTraffic / ATAirlock sandbox escape research (macOS PoC) |
-| [airlift-windows](https://github.com/DahanGuy/airlift-windows) | Guy Dahan | Windows port driving `AirTrafficHost.dll` through ctypes |
-| [AirliftSilence](https://github.com/YiHoooong/AirliftSilence) | YiHoooong | packaging for this exact goal, the Grappa session fix, backup + verification flow |
-| [AirCard-iOS](https://github.com/Mak5er/AirCard-iOS) | Mak5er | Grappa client tokens and the fix approach |
-| [bl_sbx](https://github.com/h2zi/bl_sbx) | h2zi | an earlier attempt at replacing these two files |
+| [airlift](https://github.com/0xjohnnydev/airlift) | Johnny Franks | 最初的 AirTraffic / ATAirlock 沙盒逃逸研究（macOS PoC） |
+| [airlift-windows](https://github.com/DahanGuy/airlift-windows) | Guy Dahan | 用 ctypes 调用 `AirTrafficHost.dll` 的 Windows 移植 |
+| [AirliftSilence](https://github.com/YiHoooong/AirliftSilence) | YiHoooong | 面向「静音通话提示音」的封装、Grappa 会话修复、备份与校验流程 |
+| [AirCard-iOS](https://github.com/Mak5er/AirCard-iOS) | Mak5er | Grappa 客户端令牌与修复思路 |
+| [bl_sbx](https://github.com/h2zi/bl_sbx) | h2zi | 替换这两个文件的先行者 |
 
-**This project's own contribution is three things:** porting `airlift.py` to macOS
-(library loading only), fixing three bugs that cause misleading failures, and establishing
-that **the silent file must be generated against the device's actual duration**.
+**本项目的增量**只有三项：把 `airlift.py` 移植到 macOS（换库加载）、
+修掉 3 个会导致误判的 bug、以及验证「静音件必须按设备实际时长生成」这件事。
 
-## License
+## 许可
 
-Upstream projects are **MIT** (Copyright © 2026 Johnny Franks); see `LICENSE`.
-This project modifies them and is released under MIT as well.
+上游项目均为 **MIT License**（Copyright © 2026 Johnny Franks），详见 `LICENSE`。
+本项目在其基础上修改，同样以 MIT 发布。
