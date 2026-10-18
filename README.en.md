@@ -170,6 +170,25 @@ What was verified: the replacement itself, an identical hash on read-back,
 > (Settings › General › Software Update › Automatic Updates) before you start.
 > Once patched, it does not come back.
 
+### Other platforms
+
+The core tool is already cross-platform — `macos/airlift.py` keeps **both** branches,
+`_load_macos()` and `_load_windows()`, selected by `sys.platform`. `设备体检.py`,
+`演练-救援流程.py` and `requirements.txt` have no macOS-specific dependencies either.
+
+But **we only verified it on macOS**. Here is the honest state:
+
+| Platform | Status |
+|---|---|
+| **macOS** | ✅ fully verified (Apple Silicon) |
+| **Windows** | 🟡 code complete, **not verified on a real device**. The only missing piece is an equivalent of `静音件生成.sh` (it is bash + macOS `afconvert`) |
+| **Linux** | ❌ very likely infeasible — this exploit depends on Apple's own `AirTrafficHost` framework, which does not exist there |
+
+> **Want to help?** Silent-tone generation on Windows is the one concrete gap.
+> The open question: **does a PCM CAF with the correct duration also work?**
+> If it does, Windows users can generate it with `ffmpeg` and the gap closes immediately.
+> See **[issue #1](https://github.com/jiutinglifeng/ios-calltone-silence/issues/1)** — PRs welcome.
+
 ---
 
 ## How it works

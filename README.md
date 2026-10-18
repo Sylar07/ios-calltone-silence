@@ -159,6 +159,24 @@ dsh
 > **如果你在 27.0.1 或更低版本：建议先关闭「设置 › 通用 › 软件更新 › 自动更新」。**
 > 漏洞一旦被修补就不会再回来。
 
+### 其他平台
+
+核心工具本身是跨平台的——`macos/airlift.py` 里同时保留了 Windows 的
+`AirTrafficHost.dll` 加载分支（按 `sys.platform` 自动选择），`设备体检.py`、
+`演练-救援流程.py`、`requirements.txt` 也没有任何 macOS 专有依赖。
+
+但**我们只在 Mac 上跑通过**，下面这些是已知情况：
+
+| 平台 | 状态 |
+|---|---|
+| **macOS** | ✅ 完整验证（本机 Apple Silicon） |
+| **Windows** | 🟡 代码齐备，**未在真机上验证**。唯一缺的是 `静音件生成.sh` 的等价实现（它是 bash + macOS 的 `afconvert`） |
+| **Linux** | ❌ 大概率不可行 —— 这个 exploit 依赖 Apple 自己的 `AirTrafficHost` 框架，Linux 上没有 |
+
+> **想帮忙？** Windows 的静音件生成是目前唯一明确的缺口。
+> 关键悬念：**PCM 格式的 CAF 配正确时长是否也能用**——如果能，Windows 用户就能用
+> `ffmpeg` 直接生成，问题当场解决。细节见 **[issue #1](https://github.com/jiutinglifeng/ios-calltone-silence/issues/1)**，也欢迎直接提 PR。
+
 ---
 
 ## 原理
