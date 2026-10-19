@@ -95,7 +95,7 @@ so recording itself keeps working and the start/stop timing does not shift.
 | IPA signing / 7-day free-account limit | required | **not needed** |
 | Loopback VPN (LocalDevVPN et al.) | required | **not needed** |
 | Pairing file | required | **not needed** |
-| What you actually need | a pile of prerequisites | **one USB cable** |
+| What you actually need | a pile of prerequisites | **one Mac and one USB cable** |
 
 The reason is a **more direct entry point** — see *How it works*.
 
