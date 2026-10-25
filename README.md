@@ -304,11 +304,11 @@ AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing ../.venv/bin/python ../tools/设备体检
 ### 第 2 步：dump 原件（必须先做）
 
 ```sh
-AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py read \
+AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing ../.venv/bin/python airlift.py read \
   /var/mobile/Library/CallServices/Greetings/default/StopDisclosure.caf \
   backup-StopDisclosure.caf --logging
 
-AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py read \
+AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing ../.venv/bin/python airlift.py read \
   /var/mobile/Library/CallServices/Greetings/default/StartDisclosureWithTone.m4a \
   backup-StartDisclosureWithTone.m4a --logging
 ```
@@ -337,11 +337,11 @@ cd ..
 
 ```sh
 cd macos
-AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py replace \
+AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing ../.venv/bin/python airlift.py replace \
   /var/mobile/Library/CallServices/Greetings/default/StopDisclosure.caf \
   silent-Stop.caf --backup device-backup-Stop.caf --logging
 
-AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py replace \
+AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing ../.venv/bin/python airlift.py replace \
   /var/mobile/Library/CallServices/Greetings/default/StartDisclosureWithTone.m4a \
   silent-Start.m4a --backup device-backup-Start.m4a --logging
 ```
@@ -359,7 +359,7 @@ AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py replace \
 ### 第 5 步：验证
 
 ```sh
-AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py read \
+AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing ../.venv/bin/python airlift.py read \
   /var/mobile/Library/CallServices/Greetings/default/StopDisclosure.caf verify.caf
 shasum -a 256 verify.caf silent-Stop.caf   # 两个哈希应一致
 ```
@@ -415,7 +415,7 @@ pt = ld.product_type or ""
 
 ```sh
 cd macos
-AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing .venv/bin/python airlift.py write \
+AIRLIFT_PAIRING_CACHE=/tmp/pd3-pairing ../.venv/bin/python airlift.py write \
   /var/mobile/Library/CallServices/Greetings/default/StopDisclosure.caf \
   <你的原件备份路径> --logging
 ```
